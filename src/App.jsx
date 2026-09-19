@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, ArrowUpRight, BookOpen, CheckCircle2, FileCheck2, ShieldCheck, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, BookOpen, CheckCircle2, FileCheck2, ShieldCheck, Sparkles, Database } from 'lucide-react'
 import { api } from './api'
 import { COPY } from './copy'
 import JurisdictionSwitch from './components/JurisdictionSwitch'
@@ -12,10 +12,10 @@ import EvalDashboard from './components/EvalDashboard'
 import Hero from './components/Hero'
 import EvidenceBoundary from './components/EvidenceBoundary'
 import Logo from './components/Logo'
-import { ABSTool, TKDLTool } from './components/QuickTools'
+import { ABSTool, TKDLTool, ConnectorsTool, TKDLResemblanceCard, RegulatoryChecklistCard, PDFExportButton } from './components/QuickTools'
 
-const NAV = ['analyze', 'abs', 'tkdl', 'graph', 'eval']
-const NAV_KEY = { analyze: 'navAnalyze', abs: 'navAbs', tkdl: 'navTkdl', graph: 'navGraph', eval: 'navEval' }
+const NAV = ['analyze', 'abs', 'tkdl', 'connectors', 'graph', 'eval']
+const NAV_KEY = { analyze: 'navAnalyze', abs: 'navAbs', tkdl: 'navTkdl', connectors: 'navConnectors', graph: 'navGraph', eval: 'navEval' }
 
 const CLARIFICATION_CATEGORIES = [
   'Classical / Generic Medicine',
@@ -49,7 +49,7 @@ export default function App() {
   const [lastConfirmedCategory, setLastConfirmedCategory] = useState(null)
   const [showHero, setShowHero] = useState(true)
 
-  const copy = COPY[lang]
+  const copy = COPY[lang] || COPY.en
 
   async function runAnalyze(confirmedCategory, langOverride) {
     setLoading(true)
@@ -96,7 +96,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="inline-flex border border-paper/25 rounded-md overflow-hidden">
+            <div className="inline-flex border border-paper/25 rounded-md overflow-hidden flex-wrap">
               {[
                 { code: 'en', label: copy.languageEnglish },
                 { code: 'te', label: copy.languageTelugu },
@@ -104,18 +104,18 @@ export default function App() {
                 { code: 'ta', label: copy.languageTamil },
                 { code: 'ml', label: copy.languageMalayalam },
                 { code: 'sa', label: copy.languageSanskrit },
-              ].map(({ code, label }, idx) => (
+              ].map((item, idx) => (
                 <button
-                  key={code}
+                  key={item.code}
                   onClick={() => {
-                    if (lang === code) return
-                    setLang(code)
-                    if (result && !result.abstained) runAnalyze(lastConfirmedCategory, code)
+                    if (lang === item.code) return
+                    setLang(item.code)
+                    if (result && !result.abstained) runAnalyze(lastConfirmedCategory, item.code)
                   }}
-                  aria-pressed={lang === code}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${idx > 0 ? 'border-l border-paper/25' : ''} ${lang === code ? 'bg-paper text-green' : 'text-paper/80 hover:text-paper'}`}
+                  aria-pressed={lang === item.code}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${idx > 0 ? 'border-l border-paper/25' : ''} ${lang === item.code ? 'bg-paper text-green' : 'text-paper/80 hover:text-paper'}`}
                 >
-                  {label}
+                  {item.label}
                 </button>
               ))}
             </div>
@@ -130,7 +130,7 @@ export default function App() {
                 tab === t ? 'border-gold bg-paper/10 text-paper' : 'border-transparent text-paper/55 hover:text-paper/90 hover:bg-paper/5'
               }`}
             >
-              {copy[NAV_KEY[t]]}
+              {copy[NAV_KEY[t]] || t}
             </button>
           ))}
         </nav>
@@ -140,10 +140,11 @@ export default function App() {
       </header>
 
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 lg:py-10">
-        {tab === 'graph' && <KnowledgeGraphView copy={copy} />}
+        {tab === 'graph' && <KnowledgeGraphView copy={copy} result={result} />}
         {tab === 'eval' && <EvalDashboard copy={copy} />}
         {tab === 'abs' && <ABSTool copy={copy} language={lang} />}
         {tab === 'tkdl' && <TKDLTool copy={copy} language={lang} />}
+        {tab === 'connectors' && <ConnectorsTool copy={copy} />}
 
         {tab === 'analyze' && (
           <>
@@ -203,7 +204,7 @@ export default function App() {
                       onClick={() => runAnalyze(cat)}
                       className="text-xs border border-green/40 bg-paper px-3 py-1.5 rounded-md text-green hover:bg-green hover:text-paper transition-colors"
                     >
-                      {copy.clarificationCategories[index]}
+                      {copy.clarificationCategories?.[index] || cat}
                     </button>
                   ))}
                 </div>
@@ -212,7 +213,7 @@ export default function App() {
 
             {!loading && result && !pendingClarification && (
               <div className="space-y-6">
-                <div className="dossier-panel p-5 sm:p-6 border-l-4 border-l-green animate-in">
+                <div className="flex items-center justify-between flex-wrap gap-3">
                   <span className="citation-marker inline-flex items-center gap-1.5 text-xs text-green/70">
                     <JurisdictionMark jurisdiction={jurisdiction} size={13} className="text-green/70" />
                     {copy.jurisdictionPrefix}: {result.jurisdiction.toUpperCase()}
@@ -220,14 +221,18 @@ export default function App() {
                       <> · {copy.detectedLanguage}: {result.input_language.toUpperCase()}</>
                     )}
                   </span>
-                  <div className="flex items-start gap-3 mt-3">
+                  <PDFExportButton analysisData={result} copy={copy} />
+                </div>
+
+                <div className="dossier-panel p-5 sm:p-6 border-l-4 border-l-green animate-in">
+                  <div className="flex items-start gap-3 mt-1">
                     <span className="inline-flex items-center justify-center w-9 h-9 rounded-md bg-green-pale text-green shrink-0"><FileCheck2 size={18} /></span>
                     <div>
                       <h2 className="font-serif text-xl text-green-dark">{copy.classification}</h2>
                       <p className="mt-1 text-lg font-semibold">{copy.classificationCategories?.[result.classification.category] || result.classification.category}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-ink/60 mt-1">{result.classification.reason}</p>
+                  <p className="text-sm text-ink/60 mt-2">{result.classification.reason}</p>
 
                   {result.applicable_areas.length > 0 && (
                     <div className="mt-4">
@@ -245,6 +250,9 @@ export default function App() {
                   <EvidenceBoundary result={result} copy={copy} onEscalate={() => setShowEscalate(true)} />
                 ) : (
                   <>
+                    <TKDLResemblanceCard tkdl={result.tkdl_resemblance} copy={copy} />
+                    <RegulatoryChecklistCard checklist={result.regulatory_checklist} copy={copy} />
+
                     <div className="dossier-panel p-5 sm:p-6 border-l-4 border-l-gold animate-in">
                       <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
                         <div className="flex items-center gap-2"><BookOpen size={17} className="text-gold-dark" /><h3 className="font-serif text-lg">{copy.assessment}</h3></div>
